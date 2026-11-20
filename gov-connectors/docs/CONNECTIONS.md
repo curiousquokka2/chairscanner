@@ -29,6 +29,11 @@ Ask the running server for live status at any time with the `govcon_connection_s
 | 2.5 | Network egress approval | Environment owner | The runtime must allow outbound HTTPS to exactly the hosts in §1 — nothing else is required. | Firewall / proxy allowlist |
 | 2.6 | SBIR.gov data during outage | Program staff | If the API stays down, request bulk data from the SBIR helpdesk (address on sbir.gov/api) or use `tango_search(resource="sbir_topics")` for topics. | n/a |
 
+### Accepted risks
+| Date | Item | Decision |
+|---|---|---|
+| 2026-11-20 | The owner pasted a SAM.gov personal API key into the Claude chat. It was not written to any file, command or commit. | **Owner accepted the risk and chose not to rotate for now.** Impact if misused (read-public key): daily quota exhaustion, activity attributed to the owner's account. Revisit: rotate at the next scheduled key renewal or if any unexplained quota use or 429s appear. |
+
 ## 3. Endpoint inventory
 
 ### USAspending (no key) — docs: https://api.usaspending.gov/docs/endpoints
