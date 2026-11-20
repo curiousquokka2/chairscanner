@@ -70,4 +70,4 @@ tool call ─► pydantic-validated params ─► connector (builds request, all
 ```
 * `src/govcon_mcp/safehttp.py`: the only code that touches the network.
 * `src/govcon_mcp/connectors/*.py`: one file per source. Add a source by subclassing `Connector`.
-* `docs/`: connection log, security model, SLED research.
+* `docs/`: connection log, security model, SLED research, and [LOCAL_SETUP.md](docs/LOCAL_SETUP.md) (save the SAM key and run the live test on your own computer).
