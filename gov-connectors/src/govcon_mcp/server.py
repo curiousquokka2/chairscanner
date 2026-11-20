@@ -55,6 +55,12 @@ def build_server(settings: Settings | None = None, transport=None, **server_kwar
     async def govcon_connection_status() -> dict:
         return {"connectors": status, "docs": "docs/CONNECTIONS.md"}
 
+    @mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+    async def healthz(request):  # unauthenticated by SDK design: reveal nothing beyond liveness
+        from starlette.responses import JSONResponse
+
+        return JSONResponse({"status": "ok"})
+
     return mcp
 
 
@@ -70,7 +76,11 @@ def _http_kwargs(host: str, port: int) -> dict:
     loopback = host in ("127.0.0.1", "::1", "localhost")
     server_kwargs: dict = {}
     if issuer and public_url and jwks:
-        scopes = [s for s in os.environ.get("GOVCON_OAUTH_SCOPES", "").split() if s]
+        # A scope is mandatory: without one, *any* token your IdP issues for this audience would be
+        # accepted (e.g. tokens minted for other apps that share the audience). Default: govcon.read.
+        scopes = [s for s in os.environ.get("GOVCON_OAUTH_SCOPES", "govcon.read").split() if s]
+        if not scopes:
+            sys.exit("GOVCON_OAUTH_SCOPES must name at least one required scope.")
         server_kwargs["token_verifier"] = JWTVerifier(issuer=issuer, audience=public_url, jwks_url=jwks,
                                                       required_scopes=scopes)
         server_kwargs["auth"] = AuthSettings(issuer_url=issuer, resource_server_url=public_url,

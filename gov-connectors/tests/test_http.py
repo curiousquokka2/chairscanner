@@ -5,7 +5,7 @@ import pytest
 from pydantic import SecretStr
 
 from govcon_mcp.errors import EgressDenied, UpstreamError
-from govcon_mcp.http import SafeClient
+from govcon_mcp.safehttp import SafeClient
 
 pytestmark = pytest.mark.anyio
 
@@ -66,7 +66,7 @@ async def test_retries_then_succeeds(monkeypatch):
     async def no_sleep(_):
         return None
 
-    monkeypatch.setattr("govcon_mcp.http.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("govcon_mcp.safehttp.asyncio.sleep", no_sleep)
 
     def handler(r):
         calls["n"] += 1

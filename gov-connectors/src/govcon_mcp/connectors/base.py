@@ -9,7 +9,7 @@ from __future__ import annotations
 from mcp_types import ToolAnnotations
 
 from ..config import Settings
-from ..http import SafeClient
+from ..safehttp import SafeClient
 
 # Every tool in this server is read-only and talks to an external system.
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)

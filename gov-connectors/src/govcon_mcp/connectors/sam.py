@@ -19,7 +19,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from ..errors import InvalidInput
-from ..http import SafeClient
+from ..safehttp import SafeClient
 from ..validation import (Cage, IsoDate, Naics, Psc, StateCode, Uei, check_range, clean_text, envelope,
                           parse_iso, project, to_mmddyyyy)
 from .base import READ_ONLY, Connector
@@ -47,6 +47,7 @@ class SAM(Connector):
     def build_client(self, transport=None) -> SafeClient:
         return SafeClient(self.name, self.hosts, secret_params={"api_key": self.settings.sam_api_key},
                           rate_per_s=1, burst=2, timeout_s=self.settings.http_timeout_s,
+                          daily_budget=self.settings.sam_daily_budget,
                           # Long cache: protects small daily quotas. Opportunities refresh daily upstream.
                           cache_ttl_s=max(self.settings.cache_ttl_s, 3600), transport=transport)
 

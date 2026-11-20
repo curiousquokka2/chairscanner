@@ -22,9 +22,10 @@ human-in-the-loop steps.
 ```bash
 cd gov-connectors
 python -m venv .venv && . .venv/bin/activate
-pip install -e '.[dev]'
+pip install --require-hashes -r requirements-lock.txt && pip install --no-deps -e .
 pytest                      # unit tests (mocked HTTP, no network)
 pytest -m live              # live smoke tests (needs egress; SAM/Tango tests need keys)
+python scripts/mutation_check.py   # proves each security control has a failing test
 export SAM_API_KEY_FILE=~/.secrets/sam_api_key   # or SAM_API_KEY=...
 govcon-mcp                  # stdio
 ```
@@ -56,6 +57,8 @@ in Claude. The server refuses a non-loopback bind without OAuth. See [docs/SECUR
 | `GOVCON_ENABLED` | Comma list to enable a subset, e.g. `usaspending,calc,sled` |
 | `GOVCON_CACHE_TTL` / `GOVCON_HTTP_TIMEOUT` | Seconds (defaults 900 / 30) |
 | `TANGO_BASE_URL` | `https://tango.makegov.com` (default) or `https://tango.dev` |
+| `GOVCON_SAM_DAILY_BUDGET` / `GOVCON_TANGO_DAILY_BUDGET` | Local per-UTC-day cap on upstream calls (SAM default 10; `none` disables) |
+| `GOVCON_OAUTH_SCOPES` | Required token scope(s); default `govcon.read` |
 | `GOVCON_LOG_LEVEL` | Default `INFO`; logs go to stderr |
 
 ## Design
@@ -65,6 +68,6 @@ tool call ─► pydantic-validated params ─► connector (builds request, all
           ─► SafeClient (host allowlist, secret injection, rate limit, cache, retry, size cap, no redirects)
           ─► upstream .gov API ─► projection/minimisation ─► envelope{source, results, untrusted_content}
 ```
-* `src/govcon_mcp/http.py`: the only code that touches the network.
+* `src/govcon_mcp/safehttp.py`: the only code that touches the network.
 * `src/govcon_mcp/connectors/*.py`: one file per source. Add a source by subclassing `Connector`.
 * `docs/`: connection log, security model, SLED research.

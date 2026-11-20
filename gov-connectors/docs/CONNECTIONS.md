@@ -22,7 +22,7 @@ Ask the running server for live status at any time with the `govcon_connection_s
 
 | # | What | Who | Steps | Where the value goes |
 |---|---|---|---|---|
-| 2.1 | **SAM.gov public API key** | Person with a SAM.gov account (Login.gov) | 1) Sign in at sam.gov → Profile → *Account Details*. 2) Under *Public API Key* click the eye icon, enter the one-time password emailed to you, copy the key. 3) For >10 calls/day, either get a SAM role (entity registration association) or request a **System Account** (Workspace → System Accounts; needs approval, IP allowlist, "read public" permission). Keys expire every 90 days — calendar a rotation. | `SAM_API_KEY` env var or `SAM_API_KEY_FILE` (secret mount). Never commit. |
+| 2.1 | **SAM.gov public API key** (read-public permission only) | Person with a SAM.gov account (Login.gov) | 1) Sign in at sam.gov → Profile → *Account Details*. 2) Under *Public API Key* click the eye icon, enter the one-time password emailed to you, copy the key. 3) For >10 calls/day, either get a SAM role (entity registration association) or request a **System Account** (Workspace → System Accounts; needs approval, IP allowlist, "read public" permission). Keys expire every 90 days — calendar a rotation. | `SAM_API_KEY` env var or `SAM_API_KEY_FILE` (secret mount). Never commit. |
 | 2.2 | **Tango API key** | Person with a Tango/MakeGov account | Sign in at tango.makegov.com → account profile → *Create a new API key* → name it (e.g. "govcon-mcp-prod") → copy. Free tier covers every endpoint used here; some shape leaves need paid tiers. | `TANGO_API_KEY` or `TANGO_API_KEY_FILE` |
 | 2.3 | Socrata app token (optional) | Anyone | Create a free account on any Socrata portal (e.g. data.cityofnewyork.us → Developer settings → *Create new app token*). One token works across Socrata portals. | `SOCRATA_APP_TOKEN` |
 | 2.4 | OAuth issuer for remote deployment | IT / identity admin | Register this server as a protected resource in your IdP (Entra ID, Okta, Login.gov, Cognito…). Provide issuer URL, JWKS URL, the public MCP URL (used as `aud`), and a scope (e.g. `govcon.read`). | `GOVCON_OAUTH_ISSUER`, `GOVCON_OAUTH_JWKS_URL`, `GOVCON_PUBLIC_URL`, `GOVCON_OAUTH_SCOPES` |
@@ -46,7 +46,9 @@ Ask the running server for live status at any time with the `govcon_connection_s
 | `sam_search_exclusions` | `GET /entity-information/v4/exclusions` | 10 records/page upstream |
 | `sam_search_contract_awards` | `GET /contract-awards/v1/search` | FPDS successor. DoD awards <90 days old are not public. Response list key not pinned in docs → connector takes the first list; **verify on first live call** |
 
-Rate limits (official, per key/day): non-federal no role **10**; non-federal with role 1,000; federal personal 1,000; non-federal system 1,000; federal system 10,000. The connector caches SAM responses ≥1 h and throttles to 1 req/s.
+Rate limits (official, per key/day): non-federal no role **10**; non-federal with role 1,000; federal personal 1,000; non-federal system 1,000; federal system 10,000. The connector caches SAM responses ≥1 h, throttles to 1 req/s, and enforces a local budget (`GOVCON_SAM_DAILY_BUDGET`, default 10). **Raise it to match your key's tier.**
+
+**Key permission:** use a key with *read public* only. FOUO/Sensitive system-account keys return CUI. See SECURITY.md → Credential reach.
 
 Characters `& | { } ^ \` are rejected by SAM.gov in parameter values; the connector strips them.
 
@@ -77,4 +79,5 @@ See `sled_list_datasets` and [SLED_RESEARCH.md](SLED_RESEARCH.md). Each dataset 
 
 | Date | Change |
 |---|---|
+| 2026-11-20 | Hardening pass: daily quota budgets, mandatory OAuth scope, `/healthz`, tighter path-ID patterns, `http.py`→`safehttp.py`, hash-pinned lock (pip-audit clean), Dependabot, gitleaks + mutation check in CI. 51 tests; 14/14 controls proven by mutation. |
 | 2026-11-20 | Initial build: 6 connectors, 16 tools. Sandbox egress to all API hosts was blocked, so live tests are pending; unit tests (36) pass against mocked HTTP. SAM and Tango await keys. SBIR.gov API reported under maintenance. |

@@ -20,7 +20,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from ..errors import InvalidInput
-from ..http import SafeClient
+from ..safehttp import SafeClient
 from ..validation import IsoDate, envelope, parse_iso, project
 from .base import READ_ONLY, Connector
 

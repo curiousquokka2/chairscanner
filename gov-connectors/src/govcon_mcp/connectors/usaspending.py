@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from ..http import SafeClient
+from ..safehttp import SafeClient
 from ..validation import (IsoDate, Naics, Psc, StateCode, check_range, clean_text, envelope, parse_iso)
 from .base import READ_ONLY, Connector
 
@@ -115,7 +115,7 @@ class USAspending(Connector):
             "Get full detail for one USAspending award by its generated_internal_id "
             "(e.g. CONT_AWD_..., CONT_IDV_..., ASST_NON_...)."))
         async def usaspending_get_award(
-            generated_internal_id: Annotated[str, Field(pattern=r"^(CONT|ASST)_[A-Z_]+_[A-Za-z0-9_\-.]{1,200}$")],
+            generated_internal_id: Annotated[str, Field(max_length=220, pattern=r"^(CONT|ASST)_[A-Z]+_[A-Za-z0-9_\-]+(?:\.[A-Za-z0-9_\-]+)*$")],
         ) -> dict:
             data = await client.get_json(f"{BASE}/awards/{generated_internal_id}/")
             keep = ["id", "generated_unique_award_id", "piid", "fain", "category", "type_description", "description",

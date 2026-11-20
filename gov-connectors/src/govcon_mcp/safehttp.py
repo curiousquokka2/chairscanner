@@ -22,6 +22,7 @@ import logging
 import random
 import time
 from collections import OrderedDict
+from datetime import datetime, timezone
 from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlsplit
@@ -31,7 +32,7 @@ from pydantic import SecretStr
 
 from .errors import EgressDenied, UpstreamError
 
-log = logging.getLogger("govcon_mcp.http")
+log = logging.getLogger("govcon_mcp.safehttp")
 
 USER_AGENT = "govcon-mcp/0.1 (+https://modelcontextprotocol.io)"
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
@@ -85,6 +86,28 @@ class _TTLCache:
             self._data.popitem(last=False)
 
 
+class _DailyBudget:
+    """Hard cap on upstream calls per UTC day (cache hits are free).
+
+    Protects small quotas (SAM.gov personal keys: 10/day) from being burned by a
+    looping agent or a single noisy user on a shared remote deployment.
+    """
+
+    def __init__(self, limit: int | None) -> None:
+        self.limit, self.day, self.used = limit, None, 0
+
+    def take(self, service: str) -> None:
+        if self.limit is None:
+            return
+        today = datetime.now(timezone.utc).date()
+        if today != self.day:
+            self.day, self.used = today, 0
+        if self.used >= self.limit:
+            raise UpstreamError(service, 429, f"local daily budget of {self.limit} upstream calls exhausted; "
+                                              "resets at 00:00 UTC (raise GOVCON_<SERVICE>_DAILY_BUDGET if your key allows)")
+        self.used += 1
+
+
 class SafeClient:
     """HTTP client scoped to one upstream service."""
 
@@ -101,6 +124,7 @@ class SafeClient:
         max_bytes: int = 8 * 1024 * 1024,
         cache_ttl_s: float = 900.0,
         max_retries: int = 3,
+        daily_budget: int | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.name = name
@@ -111,6 +135,7 @@ class SafeClient:
         self._max_retries = max_retries
         self._bucket = _TokenBucket(rate_per_s, burst)
         self._cache = _TTLCache(cache_ttl_s)
+        self._budget = _DailyBudget(daily_budget)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_s, connect=10.0),
             follow_redirects=False,
@@ -166,6 +191,7 @@ class SafeClient:
         attempt = 0
         while True:
             await self._bucket.acquire()
+            self._budget.take(self.name)  # every upstream attempt (incl. retries) counts against quota
             try:
                 data = await self._send_once(method, url, send_params, headers, body)
             except _Retryable as exc:

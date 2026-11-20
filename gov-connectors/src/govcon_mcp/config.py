@@ -33,6 +33,19 @@ def _float(name: str, default: float) -> float:
     return float(raw) if raw else default
 
 
+def _budget(name: str, default: int | None) -> int | None:
+    """Positive int sets a cap; 'none' disables it; unset keeps the default."""
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    if raw == "none":
+        return None
+    value = int(raw)
+    if value < 1:
+        raise ValueError(f"{name} must be a positive integer or 'none'")
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     sam_api_key: SecretStr | None = None
@@ -43,6 +56,9 @@ class Settings:
     http_timeout_s: float = 30.0
     cache_ttl_s: float = 900.0  # 15 min; SAM keys can be capped at 10 calls/day
     max_response_bytes: int = 8 * 1024 * 1024
+    # Local per-UTC-day caps on upstream calls. SAM default matches the smallest official tier.
+    sam_daily_budget: int | None = 10
+    tango_daily_budget: int | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -63,4 +79,6 @@ class Settings:
             enabled=enabled,
             http_timeout_s=_float("GOVCON_HTTP_TIMEOUT", cls.http_timeout_s),
             cache_ttl_s=_float("GOVCON_CACHE_TTL", cls.cache_ttl_s),
+            sam_daily_budget=_budget("GOVCON_SAM_DAILY_BUDGET", cls.sam_daily_budget),
+            tango_daily_budget=_budget("GOVCON_TANGO_DAILY_BUDGET", cls.tango_daily_budget),
         )

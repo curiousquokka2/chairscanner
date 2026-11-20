@@ -128,8 +128,10 @@ async def test_tango_header_auth_and_reserved_filters(make_server):
     assert rec.last.headers["X-API-KEY"] == "TANGOSECRET456"
     assert "TANGOSECRET456" not in str(rec.last.url)
     assert rec.last.url.params["status"] == "open|unknown"
-    err, _ = await call(server, "tango_search", {"resource": "contracts", "filters": {"api_key": "x"}})
-    assert err
+    # The route exists, so only the reserved-key control can make these fail.
+    for reserved in ("api_key", "page", "format"):
+        err, _ = await call(server, "tango_search", {"resource": "sled_opportunities", "filters": {reserved: "x"}})
+        assert err, reserved
 
 
 async def test_tango_base_url_must_be_allowlisted(make_server):

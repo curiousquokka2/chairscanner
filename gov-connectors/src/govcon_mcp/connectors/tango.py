@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 from pydantic import Field
 
 from ..errors import InvalidInput
-from ..http import SafeClient
+from ..safehttp import SafeClient
 from ..validation import clean_text, envelope
 from .base import READ_ONLY, Connector
 
@@ -60,6 +60,7 @@ class Tango(Connector):
     def build_client(self, transport=None) -> SafeClient:
         return SafeClient(self.name, self.hosts, secret_headers={"X-API-KEY": self.settings.tango_api_key},
                           rate_per_s=2, burst=4, timeout_s=self.settings.http_timeout_s,
+                          daily_budget=self.settings.tango_daily_budget,
                           cache_ttl_s=self.settings.cache_ttl_s, transport=transport)
 
     def register(self, mcp) -> None:
@@ -95,7 +96,8 @@ class Tango(Connector):
         @mcp.tool(annotations=READ_ONLY, description="Get one Tango record by its id (UUID, PIID, UEI or topic id).")
         async def tango_get(
             resource: Resource,
-            record_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9_\-.]{3,100}$")],
+            record_id: Annotated[str, Field(min_length=3, max_length=100,
+                                            pattern=r"^[A-Za-z0-9][A-Za-z0-9_\-]*(?:\.[A-Za-z0-9_\-]+)*$")],
         ) -> dict:
             data = await client.get_json(f"{base}{RESOURCES[resource]}{record_id}/")
             return envelope(f"Tango:{resource}", [data])

@@ -2,12 +2,15 @@ name: govcon-mcp tests
 
 on:
   push:
-    paths: ["gov-connectors/**"]
+    paths: ["gov-connectors/**", ".github/workflows/govcon-tests.yml"]
   pull_request:
-    paths: ["gov-connectors/**"]
+    paths: ["gov-connectors/**", ".github/workflows/govcon-tests.yml"]
 
 permissions:
   contents: read
+
+# TODO(supply-chain): pin every `uses:` below to a full 40-char commit SHA (`@<sha> # vX.Y.Z`).
+# Tags are mutable; Dependabot (github-actions ecosystem) will keep the SHAs current once pinned.
 
 jobs:
   test:
@@ -16,10 +19,29 @@ jobs:
       run:
         working-directory: gov-connectors
     steps:
-      - uses: actions/checkout@v4   # pin to a commit SHA before production use
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e '.[dev]' pip-audit
+      - name: Install locked, hash-verified dependencies
+        run: |
+          pip install --require-hashes -r requirements-lock.txt
+          pip install --no-deps -e .
       - run: pytest -q
-      - run: pip-audit --skip-editable
+      - name: Mutation check (every security control must have a failing test)
+        run: python scripts/mutation_check.py
+      - name: Dependency audit
+        run: pip install pip-audit && pip-audit -r requirements-lock.txt --require-hashes --disable-pip
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
