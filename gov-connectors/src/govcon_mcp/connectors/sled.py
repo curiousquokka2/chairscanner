@@ -41,6 +41,7 @@ class Dataset:
     filterable: tuple[str, ...] = ()  # equality filters allowed
     terms_url: str = ""  # portal terms of use (read 2026-11-20; see docs/CONNECTIONS.md)
     disclaimer: str = ""  # text the publisher requires derived applications to display
+    attribution: str = ""  # credit line the publisher asks for (from the dataset's own metadata)
 
 
 CHICAGO_DISCLAIMER = (
@@ -89,7 +90,9 @@ REGISTRY: dict[str, Dataset] = {
         ("commodity", "commodity_description", "extended_description", "quantity", "unit_price", "itm_tot_am",
          "master_agreement", "contract_name", "purchase_order", "award_date", "vendor_code", "lgl_nm", "city", "st"),
         ("commodity", "master_agreement", "lgl_nm"),
-        terms_url='https://data.austintexas.gov/stories/s/ranj-cccq'),
+        terms_url='https://data.austintexas.gov/stories/s/ranj-cccq',
+        attribution='City of Austin, Texas Open Data Portal (data.austintexas.gov), dataset 3ebq-e9iz. '
+                    'Austin asks that credit name the City and the source department.'),
     "texas_tceq_contracts": Dataset(
         "data.texas.gov", "svjm-sdfz", "TCEQ Current Contracts & Purchase Orders",
         "Texas Commission on Environmental Quality", "awards", "start_date", "total_amount",
@@ -97,7 +100,9 @@ REGISTRY: dict[str, Dataset] = {
         ("po_contract_number", "vendor_name_description", "project_name", "start_date", "end_date", "total_amount",
          "pcc_code", "contract_or_po_2"),
         ("pcc_code", "contract_or_po_2"),
-        terms_url=''),
+        terms_url='https://www.tylertech.com/terms/socrata-terms-of-service',
+        attribution='Texas Commission on Environmental Quality, Office of Administrative Services, '
+                    'via the Texas Open Data Portal (data.texas.gov), dataset svjm-sdfz.'),
 }
 
 DatasetKey = Literal[tuple(REGISTRY)]  # type: ignore[valid-type]
@@ -178,6 +183,8 @@ class SLED(Connector):
             data = await client.get_json(url, params)
             rows = [project(r, d.fields) for r in data] if isinstance(data, list) else []
             notes = ["Publisher provides this data 'as is' with no warranty of accuracy or completeness."]
+            if d.attribution:
+                notes.append("Attribution requested by the publisher: " + d.attribution)
             if d.disclaimer:
                 notes.append("REQUIRED DISCLAIMER - show verbatim wherever this data is presented: " + d.disclaimer)
             return envelope(f"{d.publisher}: {d.title}", rows, source_url=f"https://{d.host}/d/{d.dataset_id}",

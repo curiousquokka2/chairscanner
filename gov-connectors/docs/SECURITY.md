@@ -16,7 +16,7 @@ poisoned records), the network, and the deployment host.
 | Secrets in logs | `safehttp.py` installs a log filter on the HTTP-client and app loggers that scrubs every registered secret at **any** level, and sets client loggers to WARNING. Found in live testing: the MCP SDK configures INFO logging, and httpx2 logs full URLs (SAM's key is a query param). The earlier `main()`-only fix missed other entry points. | `safehttp.py::_RedactSecrets` |
 | Error-message leakage | Only `GovconError` (sanitised) messages reach the model; other exceptions become generic errors. Logs go to stderr and never include params. | `errors.py`, `server.py` |
 | Write actions | None exist. Every tool is annotated `readOnlyHint=True`. | `connectors/base.py` |
-| Supply chain | Few dependencies, major-version bounds in `pyproject.toml`. CI installs from `requirements-lock.txt` (36 packages, hash-pinned, `--require-hashes`). `pip-audit` runs in CI (clean on 2026-11-20). Dependabot covers pip and Actions, and gitleaks scans full history in CI. Actions moved to Node 24 majors (Node 20 actions stopped running on 2026-09-16). gitleaks-action is proprietary-licensed but free for personal-account repos. **Open:** pin Actions by commit SHA (see TODO in the workflow). | `requirements-lock.txt`, `.github/` |
+| Supply chain | Few dependencies, major-version bounds in `pyproject.toml`. CI installs from `requirements-lock.txt` (36 packages, hash-pinned, `--require-hashes`). `pip-audit` runs in CI (clean on 2026-11-20). Dependabot covers pip and Actions, and gitleaks scans full history in CI. Actions moved to Node 24 majors (Node 20 actions stopped running on 2026-09-16). gitleaks-action is proprietary-licensed but free for personal-account repos. Actions pinned to full commit SHAs (2026-11-20); Dependabot proposes bumps. | `requirements-lock.txt`, `.github/` |
 | Stdlib shadowing | The network module is `safehttp.py`, not `http.py`; the old name shadowed the stdlib `http` package whenever the package dir was on `sys.path`. | — |
 
 ## Credential reach (what each key unlocks beyond this server)
@@ -29,8 +29,8 @@ poisoned records), the network, and the deployment host.
 | OAuth tokens (inbound) | This server only, if the IdP binds `aud` to `GOVCON_PUBLIC_URL`. | Issue a dedicated scope; never reuse one that other apps also accept. |
 
 ## Proving the controls
-`python scripts/mutation_check.py` disables each of 18 security and terms controls in turn and requires the suite
-to fail. 18/18 were killed on 2026-11-20 (the script refuses to run unless the unmutated suite is green, because a red baseline makes every mutant look killed) (CI runs it on every push). Authn and authz each have negative
+`python scripts/mutation_check.py` disables each of 19 security and terms controls in turn and requires the suite
+to fail. 19/19 were killed on 2026-11-20 (the script refuses to run unless the unmutated suite is green, because a red baseline makes every mutant look killed) (CI runs it on every push). Authn and authz each have negative
 **and** positive end-to-end tests through the real ASGI stack (`tests/test_hardening.py`).
 
 ## Dependency intake record
@@ -51,4 +51,3 @@ to fail. 18/18 were killed on 2026-11-20 (the script refuses to run unless the u
 - [ ] SAM key has **read public** permission only (see Credential reach).
 - [ ] Set `GOVCON_SAM_DAILY_BUDGET` to your key's real daily limit (default 10).
 - [ ] Point load-balancer health checks at `/healthz`, not `/mcp` (`/mcp` returns 401 without a token).
-- [ ] Pin GitHub Actions to commit SHAs.

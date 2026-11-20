@@ -208,3 +208,10 @@ async def test_api_key_scrubbed_from_http_client_logs_at_debug(make_server, capl
     assert not err
     assert caplog.records, "expected log records"
     assert "SAMSECRET123" not in caplog.text
+
+
+async def test_austin_and_texas_results_carry_attribution(make_server):
+    server, _ = make_server({"3ebq-e9iz": [{"lgl_nm": "V"}], "svjm-sdfz": [{"vendor_name_description": "V"}]})
+    for ds, needle in (("austin_po_commodity_lines", "City of Austin"), ("texas_tceq_contracts", "Texas Commission")):
+        err, out = await call(server, "sled_query", {"dataset": ds})
+        assert not err and any(needle in n and "Attribution" in n for n in out["notes"]), ds

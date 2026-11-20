@@ -98,7 +98,7 @@ in `CLAUDE.md` load automatically. Tell Claude the test result in words. **Don't
 
 Open items carried over (see CONNECTIONS.md):
 1. SAM.gov live test result (this page).
-2. Tango: decide whether the agents serve only your team or outside clients too, then add the key through the secure form.
-3. Check the Austin and Texas open-data terms of use in a browser.
-4. Pin the CI GitHub Actions to commit SHAs.
+2. Tango key (scope decided: owner-only use).
+3. Optional, recommended: a free Socrata app token (CONNECTIONS.md §2.3).
+4. Decide whether to update the older `run_scanner.yml` workflow (it probably no longer runs).
 5. Accepted risk: rotate the SAM key at its next renewal.
