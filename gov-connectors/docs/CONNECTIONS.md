@@ -10,7 +10,7 @@ Last updated: 2026-11-20 (live-verified; terms reviewed)
 | Connector | Host(s) (egress allowlist) | Auth | Human action needed | Status |
 |---|---|---|---|---|
 | `usaspending` | `api.usaspending.gov` | None | None | **Live-verified 2026-11-20**: search, category, award detail |
-| `sam` | `api.sam.gov` | API key (`SAM_API_KEY`) | **Yes — create key (see §2.1)** | Built; unit-tested; disabled until key supplied |
+| `sam` | `api.sam.gov` | API key (`SAM_API_KEY`, query param per docs) | **Yes — create key (see §2.1)** | Built; unit-tested; disabled until key supplied. **From this cloud sandbox api.sam.gov returns 404 on every path (2026-11-20)**: live test must run from another network |
 | `calc` | `api.gsa.gov` | None | None | **Live-verified 2026-11-20**: search with filters, suggest |
 | `sbir` | `api.www.sbir.gov` | None | None (but see §2.6) | **Down upstream**: its AWS API Gateway returns `403 Forbidden` on every call, including the docs' own example (2026-11-20). sbir.gov/api says "undergoing maintenance". The tool now returns this explanation and points to fallbacks. |
 | `tango` | `tango.makegov.com` (or `tango.dev`) | API key (`TANGO_API_KEY`, header `X-API-KEY`) | **Yes — create key (see §2.2)** | Built; unit-tested; disabled until key supplied |
@@ -59,6 +59,20 @@ Rate limits (official, per key/day): non-federal no role **10**; non-federal wit
 **Key permission:** use a key with *read public* only. FOUO/Sensitive system-account keys return CUI. See SECURITY.md → Credential reach.
 
 Characters `& | { } ^ \` are rejected by SAM.gov in parameter values; the connector strips them.
+
+**How the key is sent (docs read in full 2026-11-20).** For all four public endpoints used here, the
+official docs and the Opportunities OpenAPI file document the key **only** as the `api_key` query parameter
+(`in: query`, required). The `X-Api-Key` header is documented **only** for "Sensitive" POST calls from
+federal system accounts with HTTP Basic auth, which this server must not use. Header delivery for public GET
+calls is therefore **unverified**. Some third-party summaries claim it works; they are not authoritative.
+Decision: keep the documented query parameter. Do **not** rely on a proxy that injects the key as a header.
+
+**Reachability from the cloud sandbox: unverified.** On 2026-11-20 every `api.sam.gov` path, including the
+bare root and the docs' own example URL, returned `404` with an empty body and `server: istio-envoy`.
+That happened with no key, a fake header key and a fake query key alike. Other allowlisted hosts respond normally from the same sandbox.
+Cause unknown: possibly SAM.gov refusing this network, or a gateway change. To confirm, run
+`pytest -m live -k sam` with a real key from a US workstation; if it also 404s there, re-read the
+SAM.gov change log / status page.
 
 ### GSA CALC+ (no key) — docs: https://open.gsa.gov/api/dx-calc-api/
 | Tool | Path |
