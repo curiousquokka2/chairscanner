@@ -1,0 +1,25 @@
+name: govcon-mcp tests
+
+on:
+  push:
+    paths: ["gov-connectors/**"]
+  pull_request:
+    paths: ["gov-connectors/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gov-connectors
+    steps:
+      - uses: actions/checkout@v4   # pin to a commit SHA before production use
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]' pip-audit
+      - run: pytest -q
+      - run: pip-audit --skip-editable
