@@ -34,6 +34,31 @@ from .errors import EgressDenied, UpstreamError
 
 log = logging.getLogger("govcon_mcp.safehttp")
 
+# --- Log redaction -----------------------------------------------------------
+# The HTTP client logs full request URLs (SAM.gov's api_key is a query param) and the MCP SDK
+# configures INFO logging when a server is built. Level tweaks in main() are not enough: any other
+# entry point would leak. So every registered secret is scrubbed from these loggers' records at any level.
+_REGISTERED_SECRETS: set[str] = set()
+_HTTP_LOGGERS = ("httpx2", "httpcore2", "httpx", "httpcore", "govcon_mcp")
+
+
+class _RedactSecrets(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if _REGISTERED_SECRETS:
+            msg = record.getMessage()
+            for secret in _REGISTERED_SECRETS:
+                msg = msg.replace(secret, "***")
+            record.msg, record.args = msg, None
+        return True
+
+
+_FILTER = _RedactSecrets()
+for _name in _HTTP_LOGGERS:
+    _logger = logging.getLogger(_name)
+    _logger.addFilter(_FILTER)
+    if _name != "govcon_mcp":
+        _logger.setLevel(logging.WARNING)  # request-URL logging off by default; filter still applies if lowered
+
 USER_AGENT = "govcon-mcp/0.1 (+https://modelcontextprotocol.io)"
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
@@ -136,6 +161,10 @@ class SafeClient:
         self._bucket = _TokenBucket(rate_per_s, burst)
         self._cache = _TTLCache(cache_ttl_s)
         self._budget = _DailyBudget(daily_budget)
+        self._keyed = bool(self._secret_params or self._secret_headers)
+        for secret in (*self._secret_params.values(), *self._secret_headers.values()):
+            if secret.get_secret_value():
+                _REGISTERED_SECRETS.add(secret.get_secret_value())
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_s, connect=10.0),
             follow_redirects=False,
@@ -197,7 +226,7 @@ class SafeClient:
             except _Retryable as exc:
                 attempt += 1
                 if attempt > self._max_retries:
-                    raise UpstreamError(self.name, exc.status, self.redact(exc.detail)) from None
+                    raise UpstreamError(self.name, exc.status, self.redact(exc.detail), keyed=self._keyed) from None
                 delay = exc.retry_after if exc.retry_after is not None else min(30.0, 2 ** attempt)
                 delay = min(30.0, delay) + random.uniform(0, 0.5)
                 log.warning("%s: retrying after %.1fs (status=%s)", self.name, delay, exc.status)
@@ -222,9 +251,10 @@ class SafeClient:
                     chunks.append(chunk)
                 raw = b"".join(chunks)
                 if status in RETRY_STATUSES:
-                    raise _Retryable(status, raw[:300].decode("utf-8", "replace"), _retry_after(resp))
+                    raise _Retryable(status, self.redact(raw.decode("utf-8", "replace"))[:300], _retry_after(resp))
                 if status >= 400:
-                    raise UpstreamError(self.name, status, self.redact(raw[:500].decode("utf-8", "replace")))
+                    raise UpstreamError(self.name, status, self.redact(raw.decode("utf-8", "replace"))[:500],
+                                        keyed=self._keyed)
                 ctype = resp.headers.get("content-type", "")
                 if "json" not in ctype:
                     raise UpstreamError(self.name, status, f"unexpected content-type {ctype!r}")

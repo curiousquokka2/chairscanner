@@ -39,7 +39,16 @@ class Dataset:
     # via $select so a renamed upstream column degrades to a missing field instead of a 400.
     fields: tuple[str, ...]
     filterable: tuple[str, ...] = ()  # equality filters allowed
+    terms_url: str = ""  # portal terms of use (read 2026-11-20; see docs/CONNECTIONS.md)
+    disclaimer: str = ""  # text the publisher requires derived applications to display
 
+
+CHICAGO_DISCLAIMER = (
+    "This site provides applications using data that has been modified for use from its original source, "
+    "www.cityofchicago.org, the official website of the City of Chicago. The City of Chicago makes no claims as to "
+    "the content, accuracy, timeliness, or completeness of any of the data provided at this site. The data provided "
+    "at this site is subject to change at any time. It is understood that the data provided at this site is being "
+    "used at one's own risk.")  # verbatim, required by Chicago Data Terms of Use for derived applications
 
 # Verified 2026-11-20 by fetching /resource/<id>.json and /api/views/<id>.json.
 REGISTRY: dict[str, Dataset] = {
@@ -49,7 +58,8 @@ REGISTRY: dict[str, Dataset] = {
         ("request_id", "start_date", "end_date", "agency_name", "type_of_notice_description", "category_description",
          "short_title", "selection_method_description", "section_name", "pin", "contract_amount",
          "additional_description_1"),
-        ("agency_name", "type_of_notice_description", "category_description", "section_name")),
+        ("agency_name", "type_of_notice_description", "category_description", "section_name"),
+        terms_url='https://opendata.cityofnewyork.us/overview/#termsofuse'),
     "ny_state_authorities_procurement": Dataset(
         "data.ny.gov", "ehig-g5x3", "Procurement Report for Local and State Authorities", "New York State ABO",
         "awards", "award_date", "contract_amount", ("procurement_description", "vendor_name"),
@@ -57,32 +67,37 @@ REGISTRY: dict[str, Dataset] = {
          "procurement_description", "type_of_procurement", "award_process", "award_date", "begin_date",
          "contract_amount", "amount_expended_to_date", "number_of_bids_or_proposals_received", "vendor_is_a_mwbe",
          "status"),
-        ("authority_name", "type_of_procurement", "award_process", "status", "vendor_state")),
+        ("authority_name", "type_of_procurement", "award_process", "status", "vendor_state"),
+        terms_url='https://data.ny.gov/download/77gx-ii52/application/pdf'),
     "la_ramp_open_bids": Dataset(
         "data.lacity.org", "hf3r-utnq", "RAMP Open Bid Opportunities", "City of Los Angeles",
         "solicitations", "bidpost", None, ("title",),
         ("rampid", "title", "stagename", "category", "type", "bidpost", "closedate", "department", "url"),
-        ("stagename", "type", "department", "category")),
+        ("stagename", "type", "department", "category"),
+        terms_url='https://data.lacity.org/terms-of-use'),
     "chicago_contracts": Dataset(
         "data.cityofchicago.org", "rsxa-ify5", "Contracts (since 1993)", "City of Chicago",
         "awards", "approval_date", "award_amount", ("purchase_order_description", "vendor_name"),
         ("purchase_order_description", "purchase_order_contract_number", "revision_number", "specification_number",
          "contract_type", "start_date", "end_date", "approval_date", "department", "vendor_name", "vendor_id",
          "city", "state", "award_amount"),
-        ("department", "contract_type", "vendor_name")),
+        ("department", "contract_type", "vendor_name"),
+        terms_url='https://www.chicago.gov/city/en/narr/foia/data_disclaimer.html', disclaimer=CHICAGO_DISCLAIMER),
     "austin_po_commodity_lines": Dataset(
         "data.austintexas.gov", "3ebq-e9iz", "Purchase Order commodity line detail (goods)", "City of Austin, TX",
         "purchase_orders", "award_date", "itm_tot_am", ("contract_name", "commodity_description", "lgl_nm"),
         ("commodity", "commodity_description", "extended_description", "quantity", "unit_price", "itm_tot_am",
          "master_agreement", "contract_name", "purchase_order", "award_date", "vendor_code", "lgl_nm", "city", "st"),
-        ("commodity", "master_agreement", "lgl_nm")),
+        ("commodity", "master_agreement", "lgl_nm"),
+        terms_url='https://data.austintexas.gov/stories/s/ranj-cccq'),
     "texas_tceq_contracts": Dataset(
         "data.texas.gov", "svjm-sdfz", "TCEQ Current Contracts & Purchase Orders",
         "Texas Commission on Environmental Quality", "awards", "start_date", "total_amount",
         ("project_name", "vendor_name_description"),
         ("po_contract_number", "vendor_name_description", "project_name", "start_date", "end_date", "total_amount",
          "pcc_code", "contract_or_po_2"),
-        ("pcc_code", "contract_or_po_2")),
+        ("pcc_code", "contract_or_po_2"),
+        terms_url=''),
 }
 
 DatasetKey = Literal[tuple(REGISTRY)]  # type: ignore[valid-type]
@@ -115,7 +130,8 @@ class SLED(Connector):
             rows = [{"dataset": k, "title": d.title, "publisher": d.publisher, "kind": d.kind,
                      "date_field": d.date_field, "amount_field": d.amount_field,
                      "filterable_fields": list(d.filterable),
-                     "portal_url": f"https://{d.host}/d/{d.dataset_id}"} for k, d in REGISTRY.items()]
+                     "portal_url": f"https://{d.host}/d/{d.dataset_id}",
+                     "terms_url": d.terms_url or "unverified"} for k, d in REGISTRY.items()]
             return envelope("SLED registry", rows, notes=[
                 "Coverage is a handful of jurisdictions; absence of results is not absence of a market.",
                 "For multi-state SLED solicitations use tango_search(resource='sled_opportunities')."])
@@ -161,7 +177,11 @@ class SLED(Connector):
             url = f"https://{d.host}/resource/{d.dataset_id}.json"
             data = await client.get_json(url, params)
             rows = [project(r, d.fields) for r in data] if isinstance(data, list) else []
+            notes = ["Publisher provides this data 'as is' with no warranty of accuracy or completeness."]
+            if d.disclaimer:
+                notes.append("REQUIRED DISCLAIMER - show verbatim wherever this data is presented: " + d.disclaimer)
             return envelope(f"{d.publisher}: {d.title}", rows, source_url=f"https://{d.host}/d/{d.dataset_id}",
+                            terms_url=d.terms_url or "unverified", notes=notes,
                             next_offset=offset + limit if len(rows) == limit else None)
 
 

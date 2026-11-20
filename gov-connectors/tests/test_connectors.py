@@ -24,6 +24,7 @@ async def test_usaspending_search_builds_filters(make_server):
     assert rec.last.url.host == "api.usaspending.gov"
     assert body["filters"]["award_type_codes"] == ["A", "B", "C", "D"]
     assert body["filters"]["naics_codes"] == {"require": ["541512"]}
+
     assert body["filters"]["place_of_performance_locations"] == [{"country": "USA", "state": "VA"}]
     assert out["results"][0]["usaspending_url"].endswith("CONT_AWD_X1")
     assert out["untrusted_content"] is True
@@ -167,3 +168,12 @@ async def test_sled_rejects_unlisted_field_and_dataset(make_server):
     assert err
     err, _ = await call(server, "sled_query", {"dataset": "some_other_dataset"})
     assert err and not rec.requests
+
+
+
+async def test_usaspending_psc_uses_documented_list_form(make_server):
+    # api_contracts/search_filters.md: psc_codes is a plain list of codes (live API 422s on [[code]] paths).
+    server, rec = make_server({"spending_by_award": {"results": [], "page_metadata": {}}})
+    err, _ = await call(server, "usaspending_search_awards",
+                        {"start_date": "2025-10-01", "end_date": "2026-09-30", "psc": ["D399", "R408"]})
+    assert not err and json.loads(rec.last.content)["filters"]["psc_codes"] == ["D399", "R408"]

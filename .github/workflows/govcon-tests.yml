@@ -11,6 +11,10 @@ permissions:
 
 # TODO(supply-chain): pin every `uses:` below to a full 40-char commit SHA (`@<sha> # vX.Y.Z`).
 # Tags are mutable; Dependabot (github-actions ecosystem) will keep the SHAs current once pinned.
+# Versions chosen 2026-11-20 from release notes: Node 20 was removed from hosted runners on
+# 2026-09-16, so checkout@v4 / setup-python@v5 / gitleaks-action@v2 no longer run.
+# gitleaks-action is proprietary-licensed since v2; free for personal-account repos (this one).
+# If the repo moves to an organization, add a free GITLEAKS_LICENSE secret (gitleaks.io).
 
 jobs:
   test:
@@ -19,10 +23,10 @@ jobs:
       run:
         working-directory: gov-connectors
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install locked, hash-verified dependencies
@@ -38,10 +42,10 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

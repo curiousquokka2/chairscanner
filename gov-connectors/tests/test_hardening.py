@@ -150,3 +150,61 @@ async def test_healthz_is_public_and_minimal(http_app):
     app, _ = http_app
     r = await _post(app, {"host": "127.0.0.1:8000"}, path="/healthz", method="GET")
     assert r.status_code == 200 and r.json() == {"status": "ok"}
+
+
+# ---- terms-of-use and outage handling (added after reading each provider's terms, 2026-11-20) ----
+async def test_chicago_results_carry_required_disclaimer(make_server):
+    server, _ = make_server({"rsxa-ify5": [{"vendor_name": "V"}]})
+    err, out = await call(server, "sled_query", {"dataset": "chicago_contracts"})
+    assert not err and any("City of Chicago makes no claims" in n for n in out["notes"])
+
+
+async def test_sbir_403_explains_maintenance_not_key(make_server):
+    server, _ = make_server({"public/api/awards": httpx.Response(403, json={"message": "Forbidden"})})
+    err, out = await call(server, "sbir_search_awards", {"agency": "NSF"})
+    assert err and "undergoing maintenance" in str(out) and "API key" not in str(out)
+
+
+async def test_keyed_service_403_still_hints_key(make_server):
+    server, _ = make_server({"opportunities": httpx.Response(403, json={"error": "bad key"})})
+    err, out = await call(server, "sam_search_opportunities", {"naics": "541512"})
+    assert err and "check the API key" in str(out)
+
+
+async def test_tango_page_cap_and_terms_note(make_server):
+    server, rec = make_server({"/api/contracts/": {"count": 0, "results": []}})
+    err, _ = await call(server, "tango_search", {"resource": "contracts", "page": 21})
+    assert err and not rec.requests
+    err, out = await call(server, "tango_search", {"resource": "contracts", "page": 20})
+    assert not err and "tango.makegov.com/terms" in out["notes"][0]
+
+
+async def test_retry_error_redacts_before_truncating(monkeypatch):
+    async def no_sleep(_):
+        return None
+    monkeypatch.setattr("govcon_mcp.safehttp.asyncio.sleep", no_sleep)
+    key = "K" * 40
+    body = "x" * 280 + key  # key straddles the 300-char cut
+    c = SafeClient("sam", {"api.example.gov"}, secret_params={"api_key": SecretStr(key)}, cache_ttl_s=0,
+                   rate_per_s=1000, burst=1000, max_retries=1,
+                   transport=httpx.MockTransport(lambda r: httpx.Response(503, text=body,
+                                                                          headers={"content-type": "text/plain"})))
+    with pytest.raises(UpstreamError) as exc:
+        await c.get_json("https://api.example.gov/x")
+    assert "KKKKK" not in str(exc.value)
+
+
+# ---- secrets never reach logs, even at DEBUG ----
+async def test_api_key_scrubbed_from_http_client_logs_at_debug(make_server, caplog):
+    import logging
+    server, _ = make_server({"opportunities": {"opportunitiesData": []}})
+    logging.getLogger("httpx2").setLevel(logging.DEBUG)  # simulate an operator turning debug on
+    try:
+        with caplog.at_level(logging.DEBUG):
+            err, _ = await call(server, "sam_search_opportunities", {"naics": "541512"})
+            logging.getLogger("httpx2").info("HTTP Request: GET https://api.sam.gov/x?api_key=%s", "SAMSECRET123")
+    finally:
+        logging.getLogger("httpx2").setLevel(logging.WARNING)
+    assert not err
+    assert caplog.records, "expected log records"
+    assert "SAMSECRET123" not in caplog.text

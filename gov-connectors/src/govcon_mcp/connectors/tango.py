@@ -21,6 +21,10 @@ from .base import READ_ONLY, Connector
 
 ALLOWED_BASES = frozenset({"tango.makegov.com", "tango.dev"})
 
+TERMS_NOTE = ("Tango Terms of Service: data may be shown to people outside your organisation only with each "
+              "record linked to its public source or Tango, and never as bulk exports. Do not page through "
+              "whole datasets. https://tango.makegov.com/terms/")
+
 RESOURCES: dict[str, str] = {
     "contracts": "/api/contracts/",
     "idvs": "/api/idvs/",
@@ -77,7 +81,9 @@ class Tango(Connector):
             search: Annotated[str | None, Field(min_length=2, max_length=200)] = None,
             filters: Annotated[dict[FilterKey, FilterVal] | None, Field(max_length=15)] = None,
             ordering: Annotated[str | None, Field(pattern=r"^-?[a-z_]{2,40}$")] = None,
-            page: Annotated[int, Field(ge=1, le=1000)] = 1,
+            # Tango Terms 3(c): systematic paging to copy a dataset needs an Order Form. Cap pages to
+            # keep agents on targeted queries (20 pages x 100 = 2,000 records per query).
+            page: Annotated[int, Field(ge=1, le=20)] = 1,
             limit: Annotated[int, Field(ge=1, le=100)] = 25,
         ) -> dict:
             reserved = {"page", "limit", "search", "ordering", "format", "api_key"}
@@ -91,6 +97,7 @@ class Tango(Connector):
             results = data.get("results", []) if isinstance(data, dict) else data
             extras = {k: data[k] for k in ("_coverage", "meta", "_ignored_params") if isinstance(data, dict) and k in data}
             return envelope(f"Tango:{resource}", results, total=data.get("count") if isinstance(data, dict) else None,
+                            notes=[TERMS_NOTE],
                             has_next=bool(data.get("next")) if isinstance(data, dict) else None, **extras)
 
         @mcp.tool(annotations=READ_ONLY, description="Get one Tango record by its id (UUID, PIID, UEI or topic id).")

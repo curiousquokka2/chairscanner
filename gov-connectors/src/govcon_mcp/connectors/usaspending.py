@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from ..errors import InvalidInput
 from ..safehttp import SafeClient
 from ..validation import (IsoDate, Naics, Psc, StateCode, check_range, clean_text, envelope, parse_iso)
 from .base import READ_ONLY, Connector
@@ -42,8 +43,11 @@ def _filters(*, award_group: str, start_date: str, end_date: str, keywords: list
              awarding_agency: str | None, pop_state: str | None, set_aside: list[str] | None = None) -> dict:
     start, end = parse_iso(start_date, "start_date"), parse_iso(end_date, "end_date")
     check_range(start, end)
+    # Search covers FY2008+ only (earliest 2007-10-01) per api_contracts/search_filters.md.
+    if end.isoformat() < "2007-10-01":
+        raise InvalidInput("USAspending search covers 2007-10-01 onward; use its bulk download for earlier data")
     if start.isoformat() < "2007-10-01":
-        start_date = "2007-10-01"  # USAspending search only covers FY2008+
+        start_date = "2007-10-01"
     f: dict = {
         "time_period": [{"start_date": start_date, "end_date": end_date}],
         "award_type_codes": AWARD_TYPE_CODES[award_group],
@@ -55,7 +59,9 @@ def _filters(*, award_group: str, start_date: str, end_date: str, keywords: list
     if naics:
         f["naics_codes"] = {"require": naics}
     if psc:
-        f["psc_codes"] = {"require": [[p] for p in psc]}
+        # Plain list form per api_contracts/search_filters.md (the require/exclude form takes tree paths
+        # starting at Tier1 names such as "Service", not bare codes).
+        f["psc_codes"] = psc
     if recipient:
         f["recipient_search_text"] = [clean_text(recipient)]
     if awarding_agency:

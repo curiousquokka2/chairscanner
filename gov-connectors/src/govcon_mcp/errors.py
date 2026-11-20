@@ -20,11 +20,14 @@ class InvalidInput(GovconError):
 
 
 class UpstreamError(GovconError):
-    def __init__(self, service: str, status: int, detail: str) -> None:
-        self.service, self.status, self.detail = service, status, detail
-        hint = ""
-        if status in (401, 403):
+    def __init__(self, service: str, status: int, detail: str, *, keyed: bool = False, hint: str = "") -> None:
+        self.service, self.status, self.detail, self.keyed = service, status, detail, keyed
+        if hint:
+            hint = f" ({hint})"
+        elif status in (401, 403) and keyed:
             hint = " (check the API key for this service - see docs/CONNECTIONS.md)"
+        elif status in (401, 403):
+            hint = " (upstream refused the request; this service needs no key - see docs/CONNECTIONS.md for status)"
         elif status == 429:
             hint = " (rate limit reached - SAM.gov personal keys may allow only 10 calls/day)"
         super().__init__(f"{service} returned HTTP {status}: {detail[:300]}{hint}")

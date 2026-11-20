@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from ..errors import InvalidInput
+from ..errors import InvalidInput, UpstreamError
 from ..safehttp import SafeClient
 from ..validation import clean_text, envelope, project
 from .base import READ_ONLY, Connector
@@ -57,7 +57,15 @@ class SBIR(Connector):
                 raise InvalidInput("SBIR.gov year search requires agency as well")
             params = {"agency": agency, "firm": clean_text(firm), "year": year,
                       "ri": clean_text(research_institution), "rows": rows, "start": start}
-            data = await client.get_json(f"{BASE}/awards", params)
+            try:
+                data = await client.get_json(f"{BASE}/awards", params)
+            except UpstreamError as exc:
+                if exc.status in (403, 500, 502, 503, 504, 0):
+                    raise UpstreamError(exc.service, exc.status, exc.detail, hint=(
+                        "SBIR.gov states its API is 'undergoing maintenance' (sbir.gov/api; its gateway returned 403 "
+                        "on 2026-11-20). For SBIR/STTR topics use tango_search(resource='sbir_topics'); for awards "
+                        "use usaspending_search_awards with keywords such as 'SBIR'")) from None
+                raise
             records = data if isinstance(data, list) else data.get("results", data.get("awards", []))
             rows_out = [project(r, _FIELDS, max_text=1200) for r in records if isinstance(r, dict)]
             return envelope("SBIR.gov Awards", rows_out, source_url="https://www.sbir.gov/awards",

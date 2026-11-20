@@ -108,9 +108,7 @@ def main(argv: list[str] | None = None) -> None:
     # Logs go to stderr (stdout is the stdio protocol channel). Never log secrets or request params.
     logging.basicConfig(level=os.environ.get("GOVCON_LOG_LEVEL", "INFO"), stream=sys.stderr,
                         format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    # HTTP client libraries log full request URLs at INFO, which would include SAM's api_key query param.
-    for noisy in ("httpx", "httpx2", "httpcore", "httpcore2"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+    # Secret redaction for HTTP-client logs is installed in safehttp.py (applies to every entry point).
     if args.transport == "stdio":
         build_server().run("stdio")
     else:

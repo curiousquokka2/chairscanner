@@ -8,7 +8,7 @@ S = "src/govcon_mcp/"
 MUTATIONS = [
   ("host allowlist", S+"safehttp.py", 'if parts.scheme != "https" or host not in self.allowed_hosts or parts.username or parts.password:', 'if False:'),
   ("no-redirect", S+"safehttp.py", 'if 300 <= status < 400:', 'if False:'),
-  ("error redaction", S+"safehttp.py", 'raise UpstreamError(self.name, status, self.redact(raw[:500].decode("utf-8", "replace")))', 'raise UpstreamError(self.name, status, raw[:500].decode("utf-8", "replace"))'),
+  ("error redaction", S+"safehttp.py", 'self.redact(raw.decode("utf-8", "replace"))[:500]', 'raw[:500].decode("utf-8", "replace")'),
   ("body redaction", S+"safehttp.py", 'json.loads(self.redact(raw.decode("utf-8")))', 'json.loads(raw.decode("utf-8"))'),
   ("size cap", S+"safehttp.py", 'if size > self._max_bytes:', 'if False:'),
   ("daily budget", S+"safehttp.py", 'self._budget.take(self.name)  #', 'pass  #'),
@@ -20,7 +20,15 @@ MUTATIONS = [
   ("JWT scope check", S+"auth.py", 'if not self.required_scopes.issubset(scopes):', 'if False:'),
   ("non-loopback refusal", S+"server.py", '    elif not loopback:', '    elif False:'),
   ("tango reserved filters", S+"connectors/tango.py", 'if k in reserved:', 'if False:'),
+  ("tango page cap (terms)", S+"connectors/tango.py", 'Field(ge=1, le=20)] = 1,', 'Field(ge=1, le=1000)] = 1,'),
+  ("chicago disclaimer (terms)", S+"connectors/sled.py", 'if d.disclaimer:', 'if False:'),
+  ("log redaction filter", S+"safehttp.py", 'msg = msg.replace(secret, "***")', 'pass'),
+  ("redact before truncate", S+"safehttp.py", 'self.redact(raw.decode("utf-8", "replace"))[:300]', 'raw[:300].decode("utf-8", "replace")'),
 ]
+base = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider"], capture_output=True, text=True)
+if base.returncode != 0:
+    print("Baseline suite is failing - fix it first; mutation results would be meaningless.")
+    sys.exit(99)
 bad = 0
 for name, path, old, new in MUTATIONS:
     p = pathlib.Path(path); orig = p.read_text()
