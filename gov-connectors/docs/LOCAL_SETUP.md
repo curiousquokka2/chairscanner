@@ -80,6 +80,17 @@ pytest -m live -k sam -rs
 
 ---
 
+## Optional: Socrata app token (for the `govcon-sled` connector)
+1. Sign up at https://data.cityofnewyork.us/signup and confirm the email. One token works on all six portals.
+2. Open https://data.cityofnewyork.us/profile/edit/developer_settings and click **Create New App Token**
+   (name: `govcon-mcp`). Copy the **App Token**, not the Secret Token.
+3. Save it the same way as the SAM key (step 1 above), as `~/.secrets/socrata_app_token`, then use
+   `SOCRATA_APP_TOKEN_FILE=~/.secrets/socrata_app_token`.
+
+## Adding the connectors to Claude on your computer
+Each source is its own connector. See the README's Claude config block: add only the ones you want,
+and give each connector only its own key file.
+
 ## Reading the result
 
 | You see | Meaning | Next step |

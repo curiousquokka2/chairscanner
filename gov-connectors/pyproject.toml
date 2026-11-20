@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "govcon-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP custom-connector server for government contracting data (USAspending, SAM.gov, GSA CALC+, SBIR.gov, Tango, SLED open data)."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,6 +22,12 @@ dev = ["pytest>=8", "anyio>=4"]  # async tests use the anyio pytest plugin
 
 [project.scripts]
 govcon-mcp = "govcon_mcp.server:main"
+govcon-usaspending = "govcon_mcp.server:main_usaspending"
+govcon-sam = "govcon_mcp.server:main_sam"
+govcon-calc = "govcon_mcp.server:main_calc"
+govcon-sbir = "govcon_mcp.server:main_sbir"
+govcon-tango = "govcon_mcp.server:main_tango"
+govcon-sled = "govcon_mcp.server:main_sled"
 
 [tool.setuptools.packages.find]
 where = ["src"]

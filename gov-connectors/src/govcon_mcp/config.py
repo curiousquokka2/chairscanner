@@ -17,6 +17,10 @@ from pydantic import SecretStr
 # Every connector the server knows about. Used to validate GOVCON_ENABLED.
 ALL_CONNECTORS = ("usaspending", "sam", "calc", "sbir", "tango", "sled")
 
+# The only secret each connector may read. A single-source server loads its own secret and nothing else,
+# so (for example) the SAM server process never holds the Tango key even if both are in its environment.
+SECRET_FOR = {"sam": "SAM_API_KEY", "tango": "TANGO_API_KEY", "sled": "SOCRATA_APP_TOKEN"}
+
 
 def _read_secret(name: str) -> SecretStr | None:
     """Return a secret from ``$NAME`` or the file at ``$NAME_FILE``; None if unset."""
@@ -61,20 +65,30 @@ class Settings:
     tango_daily_budget: int | None = None
 
     @classmethod
-    def from_env(cls) -> "Settings":
-        enabled_raw = os.environ.get("GOVCON_ENABLED", "")
-        enabled = (
-            frozenset(x.strip().lower() for x in enabled_raw.split(",") if x.strip())
-            if enabled_raw
-            else frozenset(ALL_CONNECTORS)
-        )
+    def from_env(cls, only: str | None = None) -> "Settings":
+        """Load settings. With ``only``, enable that one connector and read only its secret."""
+        if only is not None:
+            if only not in ALL_CONNECTORS:
+                raise ValueError(f"unknown connector {only!r}")
+            enabled = frozenset({only})
+        else:
+            enabled_raw = os.environ.get("GOVCON_ENABLED", "")
+            enabled = (
+                frozenset(x.strip().lower() for x in enabled_raw.split(",") if x.strip())
+                if enabled_raw
+                else frozenset(ALL_CONNECTORS)
+            )
         unknown = enabled - set(ALL_CONNECTORS)
         if unknown:
             raise ValueError(f"GOVCON_ENABLED has unknown connectors: {sorted(unknown)}")
+
+        def secret(connector: str) -> SecretStr | None:
+            return _read_secret(SECRET_FOR[connector]) if connector in enabled else None
+
         return cls(
-            sam_api_key=_read_secret("SAM_API_KEY"),
-            tango_api_key=_read_secret("TANGO_API_KEY"),
-            socrata_app_token=_read_secret("SOCRATA_APP_TOKEN"),
+            sam_api_key=secret("sam"),
+            tango_api_key=secret("tango"),
+            socrata_app_token=secret("sled"),
             tango_base_url=os.environ.get("TANGO_BASE_URL", cls.tango_base_url),
             enabled=enabled,
             http_timeout_s=_float("GOVCON_HTTP_TIMEOUT", cls.http_timeout_s),

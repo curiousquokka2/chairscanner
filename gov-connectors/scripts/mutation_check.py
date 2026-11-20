@@ -23,6 +23,8 @@ MUTATIONS = [
   ("tango page cap (terms)", S+"connectors/tango.py", 'Field(ge=1, le=20)] = 1,', 'Field(ge=1, le=1000)] = 1,'),
   ("chicago disclaimer (terms)", S+"connectors/sled.py", 'if d.disclaimer:', 'if False:'),
   ("austin/texas attribution (terms)", S+"connectors/sled.py", 'if d.attribution:', 'if False:'),
+  ("per-server secret isolation", S+"config.py", 'if connector in enabled else None', 'if True else None'),
+  ("single-source settings guard", S+"server.py", 'if settings.enabled != frozenset({source}):', 'if False:'),
   ("log redaction filter", S+"safehttp.py", 'msg = msg.replace(secret, "***")', 'pass'),
   ("redact before truncate", S+"safehttp.py", 'self.redact(raw.decode("utf-8", "replace"))[:300]', 'raw[:300].decode("utf-8", "replace")'),
 ]

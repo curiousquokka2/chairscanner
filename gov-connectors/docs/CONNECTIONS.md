@@ -16,7 +16,7 @@ Last updated: 2026-11-20 (live-verified; terms reviewed)
 | `tango` | `tango.makegov.com` (or `tango.dev`) | API key (`TANGO_API_KEY`, header `X-API-KEY`) | **Yes — create key (see §2.2)** | Built; unit-tested; disabled until key supplied |
 | `sled` | `data.cityofnewyork.us`, `data.ny.gov`, `data.lacity.org`, `data.cityofchicago.org`, `data.austintexas.gov`, `data.texas.gov` | None (optional `SOCRATA_APP_TOKEN`) | Optional — app token for higher throttling limits | **Live-verified 2026-11-20**: all 6 datasets queried through the connector, plus keyword/amount filters |
 
-Ask the running server for live status at any time with the `govcon_connection_status` tool.
+Each source runs as its own MCP server (command `govcon-<connector>`, see the README table). Ask any running server for its status with the `govcon_connection_status` tool.
 
 ## 2. Human-in-the-loop actions
 
@@ -120,6 +120,7 @@ See `sled_list_datasets` and [SLED_RESEARCH.md](SLED_RESEARCH.md). Each dataset 
 
 | Date | Change |
 |---|---|
+| 2026-11-20 | **Split into one MCP server per source** (`govcon-usaspending`, `-sam`, `-calc`, `-sbir`, `-tango`, `-sled`), sharing the security core. Each loads only its own secret and has its own port and OAuth scope. Tango key saved through the secure form, but live calls return 401 "credentials were not provided" (Tango uses this message for missing *and* invalid keys); waiting on the owner to confirm the key is active. 78 tests (incl. each server spawned over stdio); 21/21 controls proven. |
 | 2026-11-20 | Austin and Texas terms read in full and resolved (attribution added to results). Tango scope confirmed as owner-only. CI Actions pinned to commit SHAs (checkout v7.0.1, setup-python v7.1.0, gitleaks-action v3.0.0), resolved with `git ls-remote` and cross-checked against release notes. Found that the pre-existing `run_scanner.yml` still uses `checkout@v3` and `setup-python@v4`, which probably no longer run; left unchanged pending the owner's OK. 59 tests; 19/19 controls proven. |
 | 2026-11-20 | Live verification and terms review: 11 live tests pass (USAspending, CALC+, 6 SLED datasets, filters). Fixed USAspending PSC filter format (live 422). Confirmed SBIR.gov down upstream (403). Terms read for all sources (§5): added Chicago's required disclaimer, Tango guardrails, and Austin/Texas marked unverified. Security: HTTP-client logs leaked request URLs (including SAM `api_key`) at INFO through any non-`main()` entry point; a redaction filter now covers every entry point. CI moved to Node 24 actions (checkout/setup-python v7, gitleaks-action v3), since the Node 20 versions stopped running on 2026-09-16. 58 tests; 18/18 controls proven by mutation. |
 | 2026-11-20 | Hardening pass: daily quota budgets, mandatory OAuth scope, `/healthz`, tighter path-ID patterns, `http.py`→`safehttp.py`, hash-pinned lock (pip-audit clean), Dependabot, gitleaks + mutation check in CI. 51 tests; 14/14 controls proven by mutation. |
